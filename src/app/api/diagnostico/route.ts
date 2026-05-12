@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     // Notificamos a n8n con los datos del diagnóstico
     // Usamos un try/catch separado para que si n8n falla, no afecte la respuesta al usuario
     try {
-      await fetch(process.env.N8N_WEBHOOK_URL!, {
+      const n8nResponse = await fetch(process.env.N8N_WEBHOOK_URL!, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -50,6 +50,8 @@ export async function POST(request: NextRequest) {
             : 'http://localhost:3000'
         })
       })
+      console.log('n8n status:', n8nResponse.status)
+      console.log('n8n URL:', process.env.N8N_WEBHOOK_URL)
     } catch (n8nError) {
       // Si n8n falla lo registramos pero no interrumpimos el flujo
       console.error('Error al notificar a n8n:', n8nError)
