@@ -27,6 +27,34 @@ export async function POST(request: NextRequest) {
     // Guardamos el caso completo en Supabase
     const caso = await guardarCaso(formulario, diagnostico)
 
+    // Notificamos a n8n con los datos del diagnóstico
+    // Usamos un try/catch separado para que si n8n falla, no afecte la respuesta al usuario
+    try {
+      await fetch(process.env.N8N_WEBHOOK_URL!, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          area: areaNombre,
+          severidad: diagnostico.severidad,
+          resumen: diagnostico.resumen,
+          tipoSolucion: diagnostico.propuesta.tipoSolucion,
+          fecha: new Date().toLocaleDateString('es-CO', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          }),
+          url: process.env.NEXT_PUBLIC_VERCEL_URL
+            ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}`
+            : 'http://localhost:3000'
+        })
+      })
+    } catch (n8nError) {
+      // Si n8n falla lo registramos pero no interrumpimos el flujo
+      console.error('Error al notificar a n8n:', n8nError)
+    }
+
     // Retornamos el caso guardado al frontend
     return NextResponse.json({ caso }, { status: 200 })
 

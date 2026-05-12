@@ -15,6 +15,7 @@ Permite registrar problemas operativos, analizarlos con IA y generar propuestas 
 - Node.js 18 o superior
 - Cuenta en [Supabase](https://supabase.com)
 - API Key de [Google AI Studio](https://aistudio.google.com/apikey)
+- Cuenta en [n8n](https://n8n.io) con el workflow de notificación configurado
 
 ## Configuración
 
@@ -35,6 +36,7 @@ GEMINI_API_KEY=tu_api_key_de_gemini
 GEMINI_MODEL=gemini-2.5-flash
 NEXT_PUBLIC_SUPABASE_URL=tu_url_de_supabase
 NEXT_PUBLIC_SUPABASE_ANON_KEY=tu_anon_key_de_supabase
+N8N_WEBHOOK_URL=tu_production_url_de_n8n
 
 ### 4. Configurar la base de datos
 
