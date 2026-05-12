@@ -77,7 +77,7 @@ export default function Home() {
 
       {/* Header con navegación */}
       <Header
-        vistaActual={vista === 'diagnostico' ? 'nueva' : vista}
+        vistaActual={vista === 'diagnostico' ? 'historial' : vista}
         onCambiarVista={(v) => {
           setError(null)
           setVista(v)
