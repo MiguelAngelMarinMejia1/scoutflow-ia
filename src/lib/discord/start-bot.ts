@@ -38,6 +38,21 @@ interface ScouterSession {
   };
 }
 
+type N8nDiagnosisPayload = {
+  userId: string;
+  username: string;
+  channelId: string;
+  command: string;
+  areaNombre: string;
+  formulario: CasoFormulario;
+  diagnostico: Diagnostico;
+  caso: Caso;
+  notification: {
+    subject: string;
+    text: string;
+  };
+} & Record<string, unknown>;
+
 const scouterSessions = new Map<string, ScouterSession>();
 
 const scouterQuestions: Array<{
@@ -127,7 +142,7 @@ discordClient.on("messageCreate", async (message) => {
     try {
       await sendTyping(message);
       const respuesta = await responderConsultaDiscord(consulta);
-      await message.reply(respuesta.slice(0, 2000));
+      await replyInChunks(message, respuesta);
     } catch (error) {
       console.error("Error al responder con Gemini:", error);
       await message.reply(getUserErrorMessage(error));
@@ -186,6 +201,60 @@ function normalizeImpacto(value: string) {
   return null;
 }
 
+async function replyInChunks(message: Message, content: string) {
+  const chunks = splitDiscordMessage(content);
+
+  if (chunks.length === 0) {
+    await message.reply("No se genero contenido para mostrar.");
+    return;
+  }
+
+  await message.reply(chunks[0]);
+
+  for (const chunk of chunks.slice(1)) {
+    if ("send" in message.channel && typeof message.channel.send === "function") {
+      await message.channel.send(chunk);
+    } else {
+      await message.reply(chunk);
+    }
+  }
+}
+
+function splitDiscordMessage(content: string, limit = 1900) {
+  const chunks: string[] = [];
+  const lines = content.split("\n");
+  let current = "";
+
+  for (const line of lines) {
+    const next = current ? `${current}\n${line}` : line;
+
+    if (next.length <= limit) {
+      current = next;
+      continue;
+    }
+
+    if (current) {
+      chunks.push(current);
+      current = "";
+    }
+
+    if (line.length <= limit) {
+      current = line;
+      continue;
+    }
+
+    for (let index = 0; index < line.length; index += limit) {
+      chunks.push(line.slice(index, index + limit));
+    }
+  }
+
+  if (current) {
+    chunks.push(current);
+  }
+
+  return chunks;
+}
+
 async function handleScouterAnswer(message: Message, session: ScouterSession) {
   const question = scouterQuestions[session.currentStep];
   const value = message.content.trim();
@@ -242,24 +311,16 @@ async function finishScouterDiagnosis(message: Message, session: ScouterSession)
 
     const diagnostico = await generarDiagnostico(formulario, area.nombre);
     const caso = await guardarCasoDiscord(formulario, diagnostico);
-    const n8nResult = await trySendDiagnosisToN8n({
-      userId: message.author.id,
-      username: message.author.username,
-      channelId: message.channel.id,
-      command: "!scouter",
-      areaNombre: area.nombre,
-      formulario,
-      diagnostico,
-      caso,
-      notification: buildNotificationPayload(caso),
-    });
+    const n8nResult = await trySendDiagnosisToN8n(
+      buildN8nPayload(message, area.nombre, formulario, diagnostico, caso)
+    );
 
     const responseMessage = n8nResult.reply || formatSavedDiagnosis(caso);
     const n8nWarning = n8nResult.sent
       ? ""
       : "\n\nAviso: el caso fue guardado, pero no pude enviar la notificacion a n8n/correo. Revisa el workflow o el webhook.";
 
-    await message.reply(`${responseMessage}${n8nWarning}`.slice(0, 2000));
+    await replyInChunks(message, `${responseMessage}${n8nWarning}`);
   } catch (error) {
     console.error("Error en el flujo !scouter:", error);
     await message.reply(getUserErrorMessage(error));
@@ -268,20 +329,7 @@ async function finishScouterDiagnosis(message: Message, session: ScouterSession)
   }
 }
 
-async function trySendDiagnosisToN8n(payload: {
-  userId: string;
-  username: string;
-  channelId: string;
-  command: string;
-  areaNombre: string;
-  formulario: CasoFormulario;
-  diagnostico: Diagnostico;
-  caso: Caso;
-  notification: {
-    subject: string;
-    text: string;
-  };
-}) {
+async function trySendDiagnosisToN8n(payload: N8nDiagnosisPayload) {
   try {
     return {
       reply: await sendDiagnosisToN8n(payload),
@@ -296,20 +344,7 @@ async function trySendDiagnosisToN8n(payload: {
   }
 }
 
-async function sendDiagnosisToN8n(payload: {
-  userId: string;
-  username: string;
-  channelId: string;
-  command: string;
-  areaNombre: string;
-  formulario: CasoFormulario;
-  diagnostico: Diagnostico;
-  caso: Caso;
-  notification: {
-    subject: string;
-    text: string;
-  };
-}) {
+async function sendDiagnosisToN8n(payload: N8nDiagnosisPayload) {
   if (!n8nWebhookUrl) {
     throw new Error("Missing N8N_WEBHOOK_URL in .env.local");
   }
@@ -329,6 +364,64 @@ async function sendDiagnosisToN8n(payload: {
   const data = await response.json().catch(() => null);
 
   return typeof data?.reply === "string" ? data.reply : null;
+}
+
+function buildN8nPayload(
+  message: Message,
+  areaNombre: string,
+  formulario: CasoFormulario,
+  diagnostico: Diagnostico,
+  caso: Caso
+): N8nDiagnosisPayload {
+  const notification = buildNotificationPayload(caso);
+  const fecha = caso.fecha ? new Date(caso.fecha).toLocaleString("es-CO") : "";
+  const causasProbables = diagnostico.causasProbables.join("\n");
+  const oportunidades = diagnostico.oportunidades.join("\n");
+  const automatizaciones = diagnostico.propuesta.automatizaciones.join("\n");
+  const siguientesPasos = diagnostico.propuesta.siguientesPasos.join("\n");
+
+  return {
+    userId: message.author.id,
+    username: message.author.username,
+    channelId: message.channel.id,
+    command: "!scouter",
+    areaNombre,
+    formulario,
+    diagnostico,
+    caso,
+    notification,
+
+    casoId: caso.id,
+    fecha,
+    area: areaNombre,
+    areaAfectada: areaNombre,
+    severidad: diagnostico.severidad,
+    contexto: formulario.contexto,
+    impacto: formulario.impacto,
+    actores: formulario.actores,
+    pasosManuales: formulario.pasosManuales,
+    cuellosBotella: formulario.cuellosBottella,
+    resumen: diagnostico.resumen,
+    resumenEjecutivo: diagnostico.resumen,
+    causasProbables,
+    oportunidades,
+    tipoSolucion: diagnostico.propuesta.tipoSolucion,
+    tipoSolucionPropuesta: diagnostico.propuesta.tipoSolucion,
+    alcanceMvp: diagnostico.propuesta.alcanceMvp,
+    automatizaciones,
+    siguientesPasos,
+    emailSubject: notification.subject,
+    emailText: notification.text,
+
+    "Caso": caso.id,
+    "Fecha": fecha,
+    "Área afectada": areaNombre,
+    "Area afectada": areaNombre,
+    "Severidad": diagnostico.severidad,
+    "Resumen Ejecutivo": diagnostico.resumen,
+    "Tipo de Solución Propuesta": diagnostico.propuesta.tipoSolucion,
+    "Tipo de Solucion Propuesta": diagnostico.propuesta.tipoSolucion,
+  };
 }
 
 function formatSavedDiagnosis(caso: Caso) {
