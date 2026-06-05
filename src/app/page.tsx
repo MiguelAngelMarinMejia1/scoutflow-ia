@@ -1,118 +1,85 @@
+// src/app/page.tsx
 // Página principal de ScoutFlow IA.
-// Actúa como controlador central — maneja el estado global de la app y decide qué componente mostrar según la acción del usuario.
+// El dashboard es la vista inicial donde el gerente puede ver
+// los casos por área y generar diagnósticos globales.
 
 'use client'
 
 import { useState } from 'react'
-import Header from '@/components/header'
-import Formulario from '@/components/formulario'
-import Diagnostico from '@/components/diagnostico'
-import Historial from '@/components/historial'
-import { Caso, CasoFormulario } from '@/types'
+import Header from '@/components/Header'
+import Dashboard from '@/components/Dashboard'
+import Diagnostico from '@/components/Diagnostico'
+import DiagnosticoGlobalComp from '@/components/DiagnosticoGlobal'
+import { Caso, DiagnosticoGlobal } from '@/types'
 
-// Definimos las vistas posibles de la aplicación
-type Vista = 'nueva' | 'diagnostico' | 'historial'
+// Vistas posibles de la aplicación
+type Vista = 'dashboard' | 'diagnostico' | 'diagnosticoGlobal'
 
 export default function Home() {
-  // Vista activa — empieza mostrando el formulario
-  const [vista, setVista] = useState<Vista>('nueva')
+  // Vista activa — empieza en el dashboard
+  const [vista, setVista] = useState<Vista>('dashboard')
 
-  // Estado de carga mientras la IA procesa el diagnóstico
-  const [cargando, setCargando] = useState(false)
-
-  // Caso actual — se llena cuando se genera un diagnóstico o se selecciona del historial
+  // Caso actual para ver el diagnóstico individual
   const [casoActual, setCasoActual] = useState<Caso | null>(null)
 
-  // Estado de error global
-  const [error, setError] = useState<string | null>(null)
+  // Diagnóstico global actual
+  const [diagnosticoGlobalActual, setDiagnosticoGlobalActual] = useState<DiagnosticoGlobal | null>(null)
 
-  // Función que se ejecuta cuando el usuario envía el formulario
-  // Llama al API Route que procesa el diagnóstico con Gemini
-  async function handleSubmitFormulario(formulario: CasoFormulario, areaNombre: string) {
-    setCargando(true)
-    setError(null)
+  // Nombre del área del diagnóstico global
+  const [areaNombreActual, setAreaNombreActual] = useState<string>('')
 
-    try {
-      // Llamamos a nuestro API Route en el servidor
-      const response = await fetch('/api/diagnostico', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ formulario, areaNombre })
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Error al generar el diagnóstico')
-      }
-
-      const data = await response.json()
-
-      // Guardamos el caso y mostramos el diagnóstico
-      setCasoActual(data.caso)
-      setVista('diagnostico')
-
-    } catch (err) {
-      console.error(err)
-      setError('Ocurrió un error al generar el diagnóstico. Intenta de nuevo.')
-    } finally {
-      setCargando(false)
-    }
-  }
-
-  // Función para ver el detalle de un caso desde el historial
+  // Función para ver el diagnóstico individual de un caso
   function handleVerCaso(caso: Caso) {
     setCasoActual(caso)
     setVista('diagnostico')
   }
 
-  // Función para volver al formulario limpio
-  function handleNuevoAnalisis() {
+  // Función para ver el diagnóstico global de un área
+  function handleVerDiagnosticoGlobal(diagnosticoGlobal: DiagnosticoGlobal) {
+    setDiagnosticoGlobalActual(diagnosticoGlobal)
+    setVista('diagnosticoGlobal')
+  }
+
+  // Función para volver al dashboard
+  function handleVolver() {
     setCasoActual(null)
-    setError(null)
-    setVista('nueva')
+    setDiagnosticoGlobalActual(null)
+    setAreaNombreActual('')
+    setVista('dashboard')
   }
 
   return (
     <div className="min-h-screen bg-[#F4F6F9]">
 
-      {/* Header con navegación */}
-      <Header
-        vistaActual={vista === 'diagnostico' ? 'historial' : vista}
-        onCambiarVista={(v) => {
-          setError(null)
-          setVista(v)
-        }}
-      />
+      {/* Header */}
+      <Header />
 
       {/* Contenido principal */}
       <main className="max-w-6xl mx-auto px-6 py-10">
 
-        {/* Mensaje de error global */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-6 text-red-600 text-sm font-medium">
-            {error}
-          </div>
-        )}
-
-        {/* Vista: Formulario nueva consulta */}
-        {vista === 'nueva' && (
-          <Formulario
-            onSubmit={handleSubmitFormulario}
-            cargando={cargando}
+        {/* Vista: Dashboard */}
+        {vista === 'dashboard' && (
+          <Dashboard
+            onVerDiagnosticoGlobal={handleVerDiagnosticoGlobal}
+            onVerCaso={handleVerCaso}
           />
         )}
 
-        {/* Vista: Diagnóstico generado */}
+        {/* Vista: Diagnóstico individual */}
         {vista === 'diagnostico' && casoActual && (
           <Diagnostico
             caso={casoActual}
-            onNuevoAnalisis={handleNuevoAnalisis}
+            onNuevoAnalisis={handleVolver}
           />
         )}
 
-        {/* Vista: Historial de casos */}
-        {vista === 'historial' && (
-          <Historial onVerCaso={handleVerCaso} />
+        {/* Vista: Diagnóstico global */}
+        {vista === 'diagnosticoGlobal' && diagnosticoGlobalActual && (
+          <DiagnosticoGlobalComp
+            diagnosticoGlobal={diagnosticoGlobalActual}
+            areaNombre={areaNombreActual}
+            onVolver={handleVolver}
+          />
         )}
 
       </main>

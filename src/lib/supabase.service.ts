@@ -2,7 +2,7 @@
 // En lugar de escribir las consultas directamente en los componentes, las tenemos aquí organizadas como funciones reutilizables.
 
 import { createClient } from '@/utils/supabase/client'
-import { Area, Caso, CasoFormulario, Diagnostico } from '@/types'
+import { Area, Caso, CasoFormulario, Diagnostico, DiagnosticoGlobal, DiagnosticoGlobalResultado } from '@/types'
 
 // Obtiene todas las áreas activas de la base de datos
 // Se usa para llenar el desplegable en el formulario
@@ -90,4 +90,109 @@ export async function obtenerCasoPorId(id: string): Promise<Caso> {
   if (error) throw new Error(error.message)
 
   return data
+}
+
+// Obtiene todos los casos de un área específica
+// Se usa para mostrar los casos en el dashboard y para el diagnóstico global
+export async function obtenerCasosPorArea(areaId: string): Promise<Caso[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('casos')
+    .select(`
+      *,
+      areas (
+        id,
+        nombre
+      )
+    `)
+    .eq('area_id', areaId)                    // Filtramos por área
+    .order('fecha', { ascending: false })      // Los más recientes primero
+
+  if (error) throw new Error(error.message)
+
+  return data || []
+}
+
+// Obtiene un resumen de cada área con la cantidad de casos
+// Se usa para mostrar las tarjetas en el dashboard
+export async function obtenerResumenPorAreas(): Promise<{ area: Area; totalCasos: number; ultimaFecha: string | null }[]> {
+  const supabase = createClient()
+
+  // Obtenemos todas las áreas activas
+  const { data: areas, error: areasError } = await supabase
+    .from('areas')
+    .select('*')
+    .eq('activa', true)
+    .order('nombre')
+
+  if (areasError) throw new Error(areasError.message)
+
+  // Para cada área contamos los casos
+  const resumen = await Promise.all(
+    (areas || []).map(async (area) => {
+      const { count, error: countError } = await supabase
+        .from('casos')
+        .select('*', { count: 'exact', head: true })
+        .eq('area_id', area.id)
+
+      if (countError) throw new Error(countError.message)
+
+      // Obtenemos la fecha del último caso
+      const { data: ultimoCaso } = await supabase
+        .from('casos')
+        .select('fecha')
+        .eq('area_id', area.id)
+        .order('fecha', { ascending: false })
+        .limit(1)
+        .single()
+
+      return {
+        area,
+        totalCasos: count || 0,
+        ultimaFecha: ultimoCaso?.fecha || null
+      }
+    })
+  )
+
+  return resumen
+}
+
+// Guarda un diagnóstico global en Supabase
+export async function guardarDiagnosticoGlobal(
+  areaId: string,
+  totalCasos: number,
+  diagnostico: DiagnosticoGlobalResultado
+): Promise<DiagnosticoGlobal> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('diagnosticos_globales')
+    .insert({
+      area_id: areaId,
+      total_casos: totalCasos,
+      diagnostico: diagnostico
+    })
+    .select()
+    .single()
+
+  if (error) throw new Error(error.message)
+
+  return data
+}
+
+// Obtiene todos los diagnósticos globales de un área específica
+// Se usa para mostrar el historial de diagnósticos globales en el dashboard
+export async function obtenerDiagnosticosGlobalesPorArea(areaId: string): Promise<DiagnosticoGlobal[]> {
+  const supabase = createClient()
+
+  const { data, error } = await supabase
+    .from('diagnosticos_globales')
+    .select('*')
+    .eq('area_id', areaId)
+    .order('fecha', { ascending: false })
+
+  if (error) throw new Error(error.message)
+
+  return data || []
 }

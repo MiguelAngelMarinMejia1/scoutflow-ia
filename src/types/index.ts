@@ -49,3 +49,27 @@ export interface Caso {
   diagnostico: Diagnostico; // Resultado del análisis de la IA
   areas?: Area;            // Datos del área (cuando se hace JOIN con la tabla areas)
 }
+
+// Representa un diagnóstico global de un área
+// Agrupa y analiza todos los casos de un área para generar una visión unificada
+export interface DiagnosticoGlobalResultado {
+  resumen: string;                       // Resumen ejecutivo de todos los problemas del área
+  patronesRecurrentes: string[];         // Problemas que se repiten entre casos
+  severidadGeneral: 'Alto' | 'Medio' | 'Bajo'; // Severidad promedio del área
+  areasDeOportunidad: string[];          // Oportunidades de mejora identificadas
+  propuestaUnificada: {
+    enfoque: string;                     // Enfoque general de solución
+    iniciativesPrioritarias: string[];   // Iniciativas más importantes
+    roadmap: string[];                   // Pasos ordenados para mejorar el área
+  }
+}
+
+// Representa un diagnóstico global guardado en Supabase
+export interface DiagnosticoGlobal {
+  id: string;
+  fecha: string;
+  area_id: string;
+  total_casos: number;
+  diagnostico: DiagnosticoGlobalResultado;
+  areas?: Area;                          // Datos del área (JOIN con tabla areas)
+}

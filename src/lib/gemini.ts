@@ -1,7 +1,7 @@
 // Este archivo maneja toda la comunicación con la API de Gemini.
 // Arma el prompt con los datos del formulario, llama a la API y parsea la respuesta en un objeto Diagnostico estructurado.
 
-import { CasoFormulario, Diagnostico } from '@/types'
+import { CasoFormulario, Diagnostico, DiagnosticoGlobalResultado } from '@/types'
 
 // URL base de la API de Gemini
 // El modelo se lee desde las variables de entorno
@@ -99,4 +99,85 @@ Responde todo en español.
   const diagnostico: Diagnostico = JSON.parse(textoLimpio)
 
   return diagnostico
+}
+
+// Función que genera un diagnóstico global para un área
+// Recibe todos los casos del área y los analiza en conjunto
+export async function generarDiagnosticoGlobal(
+  areaNombre: string,
+  casos: { contexto: string; impacto: string; actores: string; pasosManuales: string; cuellosBottella: string; diagnostico: Diagnostico }[]
+): Promise<DiagnosticoGlobalResultado> {
+
+  // Construimos un resumen de cada caso para incluirlo en el prompt
+  const resumenCasos = casos.map((caso, index) => `
+CASO ${index + 1}:
+- Contexto: ${caso.contexto}
+- Impacto: ${caso.impacto}
+- Actores: ${caso.actores}
+- Pasos manuales: ${caso.pasosManuales}
+- Cuellos de botella: ${caso.cuellosBottella}
+- Diagnóstico previo: ${caso.diagnostico.resumen}
+- Severidad: ${caso.diagnostico.severidad}
+  `).join('\n')
+
+  const prompt = `
+Eres un consultor experto en transformación digital y optimización de procesos empresariales.
+Analiza el conjunto de problemas operativos del área de ${areaNombre} de la empresa Lynx Retail Labs.
+Se te presentan ${casos.length} casos registrados. Tu tarea es generar un diagnóstico unificado que identifique patrones, problemas recurrentes y una propuesta de mejora integral para toda el área.
+
+CASOS REGISTRADOS:
+${resumenCasos}
+
+Responde ÚNICAMENTE con un objeto JSON válido con esta estructura exacta, sin texto adicional ni bloques de código:
+{
+  "resumen": "Resumen ejecutivo unificado de todos los problemas del área en 3-4 oraciones",
+  "patronesRecurrentes": [
+    "Patrón o problema recurrente 1",
+    "Patrón o problema recurrente 2"
+  ],
+  "severidadGeneral": "Alto" | "Medio" | "Bajo",
+  "areasDeOportunidad": [
+    "Oportunidad de mejora 1",
+    "Oportunidad de mejora 2"
+  ],
+  "propuestaUnificada": {
+    "enfoque": "Descripción del enfoque general de solución para toda el área",
+    "iniciativesPrioritarias": [
+      "Iniciativa prioritaria 1",
+      "Iniciativa prioritaria 2"
+    ],
+    "roadmap": [
+      "Paso 1 del roadmap",
+      "Paso 2 del roadmap",
+      "Paso 3 del roadmap"
+    ]
+  }
+}
+
+Responde todo en español.
+`
+
+  const response = await fetch(`${GEMINI_URL}?key=${process.env.GEMINI_API_KEY}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 4096,
+      }
+    })
+  })
+
+  if (!response.ok) {
+    throw new Error(`Error al llamar Gemini: ${response.statusText}`)
+  }
+
+  const data = await response.json()
+  const texto = data.candidates[0].content.parts[0].text
+  const textoLimpio = texto.replace(/```json|```/g, '').trim()
+
+  const diagnosticoGlobal: DiagnosticoGlobalResultado = JSON.parse(textoLimpio)
+
+  return diagnosticoGlobal
 }
