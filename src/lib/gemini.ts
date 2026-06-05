@@ -91,14 +91,21 @@ Responde todo en español.
 
   // Extraemos el texto de la respuesta de Gemini
   const texto = data.candidates[0].content.parts[0].text
+  if (!texto) {
+    throw new Error('Gemini no devolvió texto en la respuesta')
+  }
 
   // Limpiamos el texto por si Gemini agrega bloques de código markdown
   const textoLimpio = texto.replace(/```json|```/g, '').trim()
-
+  
+  try {
   // Parseamos el JSON y lo retornamos como un objeto Diagnostico
-  const diagnostico: Diagnostico = JSON.parse(textoLimpio)
-
-  return diagnostico
+    const diagnostico: Diagnostico = JSON.parse(textoLimpio)
+    return diagnostico
+  } catch (error) {
+    console.error('Respuesta cruda de Gemini:', textoLimpio)
+    throw new Error('Gemini devolvió un JSON inválido')
+  }
 }
 
 // Función que genera un diagnóstico global para un área
@@ -174,10 +181,21 @@ Responde todo en español.
   }
 
   const data = await response.json()
+
   const texto = data.candidates[0].content.parts[0].text
+  if (!texto) {
+    throw new Error('Gemini no devolvió texto en la respuesta')
+  }
+
   const textoLimpio = texto.replace(/```json|```/g, '').trim()
 
-  const diagnosticoGlobal: DiagnosticoGlobalResultado = JSON.parse(textoLimpio)
-
-  return diagnosticoGlobal
+  
+  try {
+  // Parseamos el JSON y lo retornamos como un objeto Diagnostico
+    const diagnosticoGlobal: DiagnosticoGlobalResultado = JSON.parse(textoLimpio)
+    return diagnosticoGlobal
+  } catch (error) {
+    console.error('Respuesta cruda de Gemini:', textoLimpio)
+    throw new Error('Gemini devolvió un JSON inválido')
+  }
 }
