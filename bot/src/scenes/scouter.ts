@@ -1,78 +1,72 @@
-// Este archivo define el flujo conversacional del comando /scouter.
-// Usa el concepto de "Scenes" de Telegraf — una secuencia de pasos donde el bot hace una pregunta, espera la respuesta y avanza al siguiente paso.
+// bot/src/scenes/scouter.ts
+// Define el flujo conversacional del comando /scouter.
+// Usa Scenes de Telegraf para guiar al usuario paso a paso
+// y obtiene las areas directamente desde Supabase.
 
 import { Scenes, Markup } from 'telegraf'
-import { enviarAn8n, DatosFormulario } from '../services/webhook'
+import { enviarAn8n, obtenerAreas, DatosFormulario, Area } from '../services/webhook'
 
-// Definimos el tipo de datos que se guardan durante la conversación
-// WizardSessionData almacena las respuestas del usuario entre pasos
+// Tipo de datos guardados durante la conversacion
 interface ScouterWizardSession extends Scenes.WizardSessionData {
   datosFormulario: Partial<DatosFormulario>
+  areas: Area[]
 }
 
-// Definimos el contexto del wizard con nuestros datos de sesión
 type ScouterContext = Scenes.WizardContext<ScouterWizardSession>
 
-// Lista de áreas disponibles — las mismas que están en Supabase
-// En una versión más avanzada esto se podría consultar desde la base de datos
-const AREAS = [
-  { id: '1', nombre: 'Logística' },
-  { id: '2', nombre: 'Ventas' },
-  { id: '3', nombre: 'Recursos Humanos' },
-  { id: '4', nombre: 'Tecnología' },
-  { id: '5', nombre: 'Finanzas' },
-  { id: '6', nombre: 'Operaciones' },
-  { id: '7', nombre: 'Marketing' }
-]
-
-// Creamos el Wizard con un ID único y sus pasos en orden
 export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
-  'scouter-wizard', // ID único del wizard
+  'scouter-wizard',
 
-  // PASO 1 — Bienvenida y selección de área
+  // PASO 1 — Bienvenida y seleccion de area
   async (ctx) => {
-    // Inicializamos el objeto que guardará los datos del formulario
     ctx.scene.session.datosFormulario = {}
 
-    // Creamos los botones con las áreas disponibles
-    const botones = AREAS.map(area =>
-      [Markup.button.callback(area.nombre, `area_${area.id}_${area.nombre}`)]
-    )
+    try {
+      // Consultamos las areas desde Supabase
+      const areas = await obtenerAreas()
 
-    await ctx.reply(
-      '*Bienvenido a ScoutFlow IA*\n\nVoy a ayudarte a registrar y analizar un problema operativo.\n\n*¿Cuál es el área afectada?*',
-      {
-        parse_mode: 'Markdown',
-        ...Markup.inlineKeyboard(botones)
-      }
-    )
+      // Guardamos las areas en la sesion para usarlas en el siguiente paso
+      ctx.scene.session.areas = areas
 
-    return ctx.wizard.next() // Avanza al siguiente paso
+      // Creamos los botones dinamicamente con las areas de Supabase
+      const botones = areas.map(area =>
+        [Markup.button.callback(area.nombre, `area_${area.id}`)]
+      )
+
+      await ctx.reply(
+        'Bienvenido a ScoutFlow IA\n\nVoy a ayudarte a registrar y analizar un problema operativo.\n\nCual es el area afectada?',
+        {
+          ...Markup.inlineKeyboard(botones)
+        }
+      )
+    } catch (error) {
+      await ctx.reply('Error al cargar las areas. Por favor intenta de nuevo con /scouter.')
+      return ctx.scene.leave()
+    }
+
+    return ctx.wizard.next()
   },
 
-  // PASO 2 — Recibe el área y pregunta por el contexto
+  // PASO 2 — Recibe el area y pregunta por el contexto
   async (ctx) => {
-    // Verificamos que el usuario haya seleccionado un área (callback_query)
     if (!ctx.callbackQuery || !('data' in ctx.callbackQuery)) {
-      await ctx.reply('Por favor selecciona un área de la lista.')
+      await ctx.reply('Por favor selecciona un area de la lista.')
       return
     }
 
-    // Extraemos el ID y nombre del área del callback
-    const data = ctx.callbackQuery.data // ej: "area_1_Logística"
-    const partes = data.split('_')
-    const areaId = partes[1]
-    const areaNombre = partes.slice(2).join('_')
+    const areaId = ctx.callbackQuery.data.replace('area_', '')
 
-    // Guardamos el área en la sesión
+    // Buscamos el nombre del area en la sesion
+    const area = ctx.scene.session.areas.find(a => a.id === areaId)
+    const areaNombre = area?.nombre || 'Area desconocida'
+
     ctx.scene.session.datosFormulario.areaId = areaId
     ctx.scene.session.datosFormulario.areaNombre = areaNombre
 
-    // Confirmamos la selección y pedimos el contexto
-    await ctx.answerCbQuery() // Cierra el loading del botón
-    await ctx.reply(`Área seleccionada: *${areaNombre}*\n\n*¿Cuál es el contexto del problema?*\n\nDescribe con detalle qué está pasando en esta área.`, {
-      parse_mode: 'Markdown'
-    })
+    await ctx.answerCbQuery()
+    await ctx.reply(
+      `Area seleccionada: ${areaNombre}\n\nCual es el contexto del problema?\n\nDescribe con detalle que esta pasando en esta area.`
+    )
 
     return ctx.wizard.next()
   },
@@ -87,9 +81,8 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
     ctx.scene.session.datosFormulario.contexto = ctx.message.text
 
     await ctx.reply(
-      'Contexto registrado.\n\n*¿Cuál es el nivel de impacto?*',
+      'Contexto registrado.\n\nCual es el nivel de impacto?',
       {
-        parse_mode: 'Markdown',
         ...Markup.inlineKeyboard([
           [
             Markup.button.callback('Alto', 'impacto_Alto'),
@@ -110,13 +103,12 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
       return
     }
 
-    const impacto = ctx.callbackQuery.data.split('_')[1] // "Alto", "Medio" o "Bajo"
+    const impacto = ctx.callbackQuery.data.split('_')[1]
     ctx.scene.session.datosFormulario.impacto = impacto
 
     await ctx.answerCbQuery()
     await ctx.reply(
-      `Impacto: *${impacto}*\n\n*¿Quiénes son los actores involucrados?*\n\nMenciona los equipos, roles o personas que participan en este proceso.`,
-      { parse_mode: 'Markdown' }
+      `Impacto: ${impacto}\n\nQuienes son los actores involucrados?\n\nMenciona los equipos, roles o personas que participan en este proceso.`
     )
 
     return ctx.wizard.next()
@@ -132,8 +124,7 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
     ctx.scene.session.datosFormulario.actores = ctx.message.text
 
     await ctx.reply(
-      'Actores registrados.\n\n*¿Cuáles son los pasos manuales actuales?*\n\nDescribe cómo se hace el proceso hoy en día.',
-      { parse_mode: 'Markdown' }
+      'Actores registrados.\n\nCuales son los pasos manuales actuales?\n\nDescribe como se hace el proceso hoy en dia.'
     )
 
     return ctx.wizard.next()
@@ -149,14 +140,13 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
     ctx.scene.session.datosFormulario.pasosManuales = ctx.message.text
 
     await ctx.reply(
-      'Pasos manuales registrados.\n\n*¿Cuáles son los cuellos de botella?*\n\nIdentifica los obstáculos o demoras más importantes.',
-      { parse_mode: 'Markdown' }
+      'Pasos manuales registrados.\n\nCuales son los cuellos de botella?\n\nIdentifica los obstaculos o demoras mas importantes.'
     )
 
     return ctx.wizard.next()
   },
 
-  // PASO 7 — Recibe los cuellos de botella y envía los datos a n8n
+  // PASO 7 — Recibe los cuellos de botella y envia los datos a n8n
   async (ctx) => {
     if (!ctx.message || !('text' in ctx.message)) {
       await ctx.reply('Por favor describe los cuellos de botella.')
@@ -165,26 +155,21 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
 
     ctx.scene.session.datosFormulario.cuellosBottella = ctx.message.text
 
-    // Avisamos al usuario que estamos procesando
     await ctx.reply('Procesando tu caso con IA... Esto puede tomar unos segundos.')
 
     try {
-      // Enviamos todos los datos a n8n
       const resultado = await enviarAn8n(ctx.scene.session.datosFormulario as DatosFormulario)
 
-      // Extraemos el diagnóstico del resultado
       const diagnostico = resultado?.caso?.diagnostico
 
       if (diagnostico) {
-        // Formateamos y enviamos el diagnóstico al usuario
         await ctx.reply(
-          `*Diagnóstico generado exitosamente*\n\n` +
-          `*Severidad:* ${diagnostico.severidad}\n\n` +
-          `*Resumen:*\n${diagnostico.resumen}\n\n` +
-          `*Causas probables:*\n${diagnostico.causasProbables.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\n` +
-          `*Tipo de solución:*\n${diagnostico.propuesta.tipoSolucion}\n\n` +
-          `_El caso ha sido guardado en el sistema._`,
-          { parse_mode: 'Markdown' }
+          `Diagnostico generado exitosamente\n\n` +
+          `Severidad: ${diagnostico.severidad}\n\n` +
+          `Resumen:\n${diagnostico.resumen}\n\n` +
+          `Causas probables:\n${diagnostico.causasProbables.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\n` +
+          `Tipo de solucion:\n${diagnostico.propuesta.tipoSolucion}\n\n` +
+          `El caso ha sido guardado en el sistema.`
         )
       } else {
         await ctx.reply('Caso registrado exitosamente en el sistema.')
@@ -192,10 +177,9 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
 
     } catch (error) {
       console.error('Error al procesar el caso:', error)
-      await ctx.reply('Ocurrió un error al procesar el caso. Por favor intenta de nuevo con /scouter.')
+      await ctx.reply('Ocurrio un error al procesar el caso. Por favor intenta de nuevo con /scouter.')
     }
 
-    // Terminamos el wizard
     return ctx.scene.leave()
   }
 )
