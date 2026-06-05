@@ -10,7 +10,7 @@ import { Caso } from '@/types'
 // onNuevoAnalisis: función para volver al formulario
 interface DiagnosticoProps {
   caso: Caso
-  onNuevoAnalisis: () => void
+  onVolver: () => void
 }
 
 // Configuración visual del badge de severidad
@@ -36,7 +36,7 @@ const severidadConfig = {
   }
 }
 
-export default function Diagnostico({ caso, onNuevoAnalisis }: DiagnosticoProps) {
+export default function Diagnostico({ caso, onVolver: onVolver }: DiagnosticoProps) {
   // Obtenemos la configuración visual según la severidad del diagnóstico
   const severidad = severidadConfig[caso.diagnostico.severidad]
 
@@ -51,6 +51,14 @@ export default function Diagnostico({ caso, onNuevoAnalisis }: DiagnosticoProps)
 
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
+
+      {/* Botón para nuevo análisis */}
+      <button
+        onClick={onVolver}
+        className="w-full py-3 bg-white border-2 border-[#0F2B5B] text-[#0F2B5B] rounded-xl font-semibold hover:bg-[#0F2B5B] hover:text-white transition-colors"
+      >
+        Volver al Dashboard
+      </button>
 
       {/* Encabezado del diagnóstico */}
       <div className="bg-white rounded-xl shadow-md p-8">
@@ -175,14 +183,6 @@ export default function Diagnostico({ caso, onNuevoAnalisis }: DiagnosticoProps)
 
         </div>
       </div>
-
-      {/* Botón para nuevo análisis */}
-      <button
-        onClick={onNuevoAnalisis}
-        className="w-full py-3 bg-white border-2 border-[#0F2B5B] text-[#0F2B5B] rounded-xl font-semibold hover:bg-[#0F2B5B] hover:text-white transition-colors"
-      >
-        Nuevo Análisis
-      </button>
 
     </div>
   )

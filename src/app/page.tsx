@@ -35,10 +35,11 @@ export default function Home() {
   }
 
   // Función para ver el diagnóstico global de un área
-  function handleVerDiagnosticoGlobal(diagnosticoGlobal: DiagnosticoGlobal) {
-    setDiagnosticoGlobalActual(diagnosticoGlobal)
-    setVista('diagnosticoGlobal')
-  }
+  function handleVerDiagnosticoGlobal(diagnosticoGlobal: DiagnosticoGlobal, areaNombre: string) {
+  setDiagnosticoGlobalActual(diagnosticoGlobal)
+  setAreaNombreActual(areaNombre)
+  setVista('diagnosticoGlobal')
+}
 
   // Función para volver al dashboard
   function handleVolver() {
@@ -69,7 +70,7 @@ export default function Home() {
         {vista === 'diagnostico' && casoActual && (
           <Diagnostico
             caso={casoActual}
-            onNuevoAnalisis={handleVolver}
+            onVolver={handleVolver}
           />
         )}
 

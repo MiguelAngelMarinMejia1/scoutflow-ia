@@ -33,6 +33,14 @@ export default function DiagnosticoGlobalComp({ diagnosticoGlobal, areaNombre, o
   return (
     <div className="max-w-3xl mx-auto flex flex-col gap-6">
 
+      {/* Botón para volver */}
+      <button
+        onClick={onVolver}
+        className="w-full py-3 bg-white border-2 border-[#0F2B5B] text-[#0F2B5B] rounded-xl font-semibold hover:bg-[#0F2B5B] hover:text-white transition-colors"
+      >
+        Volver al Dashboard
+      </button>
+
       {/* Encabezado */}
       <div className="bg-white rounded-xl shadow-md p-8">
         <div className="flex items-start justify-between gap-4">
@@ -147,14 +155,6 @@ export default function DiagnosticoGlobalComp({ diagnosticoGlobal, areaNombre, o
 
         </div>
       </div>
-
-      {/* Botón para volver */}
-      <button
-        onClick={onVolver}
-        className="w-full py-3 bg-white border-2 border-[#0F2B5B] text-[#0F2B5B] rounded-xl font-semibold hover:bg-[#0F2B5B] hover:text-white transition-colors"
-      >
-        Volver al Dashboard
-      </button>
 
     </div>
   )
