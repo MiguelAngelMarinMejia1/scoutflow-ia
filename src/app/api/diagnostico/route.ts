@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
 
     // Retornamos el caso completo a n8n
     // n8n se encargara de enviar el email con esta informacion
-    return NextResponse.json({ caso }, { status: 200 })
+    return NextResponse.json({ caso, areaNombre }, { status: 200 })
 
   } catch (error) {
     console.error('Error en /api/diagnostico:', error)
