@@ -183,3 +183,14 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
     return ctx.scene.leave()
   }
 )
+
+// Permite cancelar el flujo en cualquier paso con /cancelar o escribiendo "cancelar".
+scouterWizard.command('cancelar', async (ctx) => {
+  await ctx.reply('Operacion cancelada. Cuando quieras reiniciar, usa /scouter.')
+  return ctx.scene.leave()
+})
+
+scouterWizard.hears(/^cancelar$/i, async (ctx) => {
+  await ctx.reply('Operacion cancelada. Cuando quieras reiniciar, usa /scouter.')
+  return ctx.scene.leave()
+})
