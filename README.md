@@ -1,6 +1,6 @@
 # ScoutFlow IA
 
-Simulador de diagnóstico y propuesta digital para Lynx Retail Labs.
+Simulador de diagnóstico y propuesta digital para Lynx Retail Labs (Empresa ficticia).
 Permite registrar problemas operativos, analizarlos con IA y generar propuestas de solución digital.
 
 ## Tecnologías
