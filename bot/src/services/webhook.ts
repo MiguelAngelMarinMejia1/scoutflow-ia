@@ -55,34 +55,62 @@ export async function obtenerAreas(): Promise<Area[]> {
   return response.json() as Promise<Area[]>
 }
 
-// Funcion que envia los datos del formulario a n8n
-export async function enviarAn8n(datos: DatosFormulario): Promise<any> {
+// Función que envía los datos del formulario intentando primero n8n
+// y si falla, llama directamente al API Route de Next.js
+export async function enviarAn8n(datos: DatosFormulario): Promise<Record<string, unknown>> {
   const webhookUrl = process.env.N8N_WEBHOOK_URL
+  const apiUrl = process.env.NEXT_PUBLIC_VERCEL_URL
+    ? `https://${process.env.NEXT_PUBLIC_VERCEL_URL}/api/diagnostico`
+    : 'http://localhost:3000/api/diagnostico'
 
-  if (!webhookUrl) {
-    throw new Error('N8N_WEBHOOK_URL no esta configurada en las variables de entorno')
+  const payload = {
+    formulario: {
+      areaId: datos.areaId,
+      contexto: datos.contexto,
+      impacto: datos.impacto,
+      actores: datos.actores,
+      pasosManuales: datos.pasosManuales,
+      cuellosBottella: datos.cuellosBottella
+    },
+    areaNombre: datos.areaNombre,
+    fuente: 'telegram'
   }
 
-  const response = await fetch(webhookUrl, {
+  // Intentamos primero con n8n si la URL está configurada
+  if (webhookUrl) {
+    try {
+      console.log('Intentando enviar a n8n...')
+
+      const n8nResponse = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000) // Timeout de 30 segundos
+      })
+
+      if (n8nResponse.ok) {
+        console.log('n8n respondio correctamente')
+        return n8nResponse.json() as Promise<Record<string, unknown>>
+      }
+
+      console.log(`n8n fallo con status ${n8nResponse.status}, usando fallback...`)
+    } catch (error) {
+      console.log('n8n no disponible, usando fallback al API Route...')
+    }
+  }
+
+  // Fallback: llamamos directamente al API Route de Next.js
+  console.log('Llamando directamente al API Route:', apiUrl)
+
+  const response = await fetch(apiUrl, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      formulario: {
-        areaId: datos.areaId,
-        contexto: datos.contexto,
-        impacto: datos.impacto,
-        actores: datos.actores,
-        pasosManuales: datos.pasosManuales,
-        cuellosBottella: datos.cuellosBottella
-      },
-      areaNombre: datos.areaNombre,
-      fuente: 'telegram'
-    })
+    body: JSON.stringify(payload)
   })
 
   if (!response.ok) {
-    throw new Error(`Error al enviar datos a n8n: ${response.statusText}`)
+    throw new Error(`Error al llamar al API Route: ${response.statusText}`)
   }
 
-  return response.json()
+  return response.json() as Promise<Record<string, unknown>>
 }

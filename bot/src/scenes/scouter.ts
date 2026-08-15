@@ -158,17 +158,19 @@ export const scouterWizard = new Scenes.WizardScene<ScouterContext>(
     await ctx.reply('Procesando tu caso con IA... Esto puede tomar unos segundos.')
 
     try {
+      
       const resultado = await enviarAn8n(ctx.scene.session.datosFormulario as DatosFormulario)
 
-      const diagnostico = resultado?.caso?.diagnostico
+      const resultadoCaso = resultado?.caso as Record<string, unknown>
+      const diagnostico = resultadoCaso?.diagnostico as Record<string, unknown>
 
       if (diagnostico) {
         await ctx.reply(
           `Diagnostico generado exitosamente\n\n` +
           `Severidad: ${diagnostico.severidad}\n\n` +
           `Resumen:\n${diagnostico.resumen}\n\n` +
-          `Causas probables:\n${diagnostico.causasProbables.map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\n` +
-          `Tipo de solucion:\n${diagnostico.propuesta.tipoSolucion}\n\n` +
+          `Causas probables:\n${(diagnostico.causasProbables as string[]).map((c: string, i: number) => `${i + 1}. ${c}`).join('\n')}\n\n` +
+          `Tipo de solucion:\n${(diagnostico.propuesta as Record<string, unknown>)?.tipoSolucion}\n\n` +
           `El caso ha sido guardado en el sistema.`
         )
       } else {
